@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卡路比拉霸機</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- 變數設定 --- */
+        :root {
+            --bg-dark: #121212;      
+            --primary-gold: #FFC107; 
+            --reel-bg: #1e1e1e;      
+            --slot-window-bg: #333333; 
+            --symbol-size: 150px;    /* 符號高度：150px */
+            --font-display: 'Roboto Mono', monospace;
+            --font-main: 'Noto Sans TC', sans-serif;
+        }
+
+        /* --- 基本排版與字體 --- */
+        body {
+            font-family: var(--font-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bg-dark);
+            color: white;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: var(--primary-gold);
+            font-size: 2.8rem;
+            text-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+            margin-bottom: 20px;
+        }
+
+        /* --- 遊戲面板 --- */
+        #game-container {
+            background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+            border: 4px solid var(--primary-gold);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 
+                0 15px 30px rgba(0,0,0,0.8), 
+                inset 0 0 20px rgba(255, 193, 7, 0.2); 
+            width: 90%;
+            max-width: 700px; 
+        }
+
+        /* --- 資訊面板 --- */
+        #info-panel {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            padding: 10px 15px;
+            background-color: var(--slot-window-bg);
+            border-radius: 10px;
+            border: 1px solid #444;
+            font-family: var(--font-display);
+            font-size: 1.4rem;
+        }
+        
+        #balance-display { color: #2ecc71; } 
+        #bet-display { color: #f39c12; }    
+        #result-display { 
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+            height: 40px;
+            font-weight: 700;
+            color: #ecf0f1;
+            text-shadow: 0 0 5px #fff;
+        }
+
+        /* --- 拉霸機核心 (間距優化) --- */
+        #slot-reels {
+            display: flex;
+            justify-content: center;
+            gap: 5px; 
+            background-color: var(--slot-window-bg);
+            padding: 10px; 
+            border-radius: 15px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+            position: relative;
+        }
+        
+        #slot-reels::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 5px solid var(--primary-gold);
+            border-radius: 15px;
+            pointer-events: none;
+            box-shadow: 0 0 15px var(--primary-gold); 
+        }
+        
+        .reel {
+            width: var(--symbol-size);
+            height: var(--symbol-size);
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: var(--reel-bg);
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.9);
+            position: relative;
+        }
+
+        .reel-inner {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            transform: translateY(0); 
+            transition: transform 0s; 
+        }
+
+        .symbol {
+            width: 100%;
+            height: var(--symbol-size);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .symbol img {
+            width: 95%; 
+            height: 95%;
+            object-fit: cover;
+            border-radius: 5px;
+            border: 1px solid #444;
+            transition: all 0.1s;
+        }
+        
+        /* 圖片載入失敗時的樣式 */
+        .symbol img:not([src]) {
+            content: "❌"; 
+            color: red;
+            font-size: 3rem;
+            line-height: var(--symbol-size);
+            background-color: #333;
+            text-align: center;
+            border: 2px dashed red;
+        }
+        
+        /* --- 控制區與按鈕 --- */
+        #controls {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin-top: 25px;
+        }
+        
+        .bet-buttons button {
+            background-color: #34495e;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin: 0 5px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            box-shadow: 0 3px #2c3e50;
+        }
+        
+        .bet-buttons button:active {
+            box-shadow: 0 0 #2c3e50;
+            transform: translateY(3px);
+        }
+
+        #spin-button {
+            padding: 18px 40px;
+            font-size: 1.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            background-color: var(--primary-gold);
+            color: var(--bg-dark);
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 7px 0 #D0A000; 
+            transition: all 0.1s;
+        }
+
+        #spin-button:active {
+            box-shadow: 0 0 #D0A000;
+            transform: translateY(7px);
+        }
+
+        #spin-button:disabled {
+            background-color: #555;
+            color: #ccc;
+            box-shadow: none;
+            transform: none;
+            cursor: not-allowed;
+        }
+
+        /* --- 獲勝動畫效果 --- */
+        .winner {
+            animation: win-flash 0.5s infinite alternate;
+        }
+        
+        .winner .symbol img {
+            border-color: var(--primary-gold);
+            box-shadow: 0 0 10px var(--primary-gold);
+        }
+
+        @keyframes win-flash {
+            from { background-color: var(--slot-window-bg); }
+            to { background-color: rgba(255, 193, 7, 0.3); }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🎰 卡路比拉霸機 💰</h1>
+
+    <div id="game-container">
+        
+        <div id="info-panel">
+            <div id="balance-display">餘額: $1000</div>
+            <div id="bet-display">賭注: $100</div>
+        </div>
+
+        <div id="result-display">請下注並按下 SPIN！</div>
+
+        <div id="slot-reels">
+            <div class="reel" id="reel-0"><div class="reel-inner"></div></div>
+            <div class="reel" id="reel-1"><div class="reel-inner"></div></div>
+            <div class="reel" id="reel-2"><div class="reel-inner"></div></div>
+        </div>
+
+        <div id="controls">
+            <div class="bet-buttons">
+                <button onclick="setBet(50)">$50</button>
+                <button onclick="setBet(100)">$100</button>
+                <button onclick="setBet(200)">$200</button>
+            </div>
+            <button id="spin-button" onclick="spin()">SPIN</button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- *** 遊戲設定區塊 *** ---
+        
+        // 圖片檔案列表 (與 HTML 檔案同目錄)
+        const IMAGE_FILES = [
+            'cat1.jpg', 'cat2.jpg', 'cat3.jpg', 'cat4.jpg', 'cat5.jpg',
+            'cat6.jpg', 'cat7.jpg', 'cat8.jpg', 'cat9.jpg', 'cat10.jpg'
+        ];
+        
+        // 初始設定
+        let balance = 1000;
+        let currentBet = 100;
+        let isSpinning = false;
+        
+        // **保證中獎機制變數**
+        let consecutiveNonTripleSpins = 0;      // 連續非三連線次數
+        const TRIPLE_GUARANTEE_COUNT = 20;      // 連續非三連線 20 次後保證中獎
+
+        // 拉霸機滾軸配置
+        const REEL_COUNT = 3;
+        const SYMBOLS_PER_REEL_STRIP = 50; 
+        const SYMBOL_HEIGHT = 150; 
+
+        // 贏獎乘數
+        const PAYOUTS = {
+            TRIPLE: 10, 
+            DOUBLE: 3,  
+        };
+
+        // DOM 元素快取
+        const reels = [];
+        const reelInners = [];
+        const balanceDisplay = document.getElementById('balance-display');
+        const betDisplay = document.getElementById('bet-display');
+        const resultDisplay = document.getElementById('result-display');
+        const spinButton = document.getElementById('spin-button');
+
+        // --- 音效輔助函數 ---
+
+        function playSound(frequency, durationMs, type = 'square', gain = 0.5) {
+            try {
+                if (!window.audioCtx) {
+                    window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                const audioCtx = window.audioCtx;
+
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.type = type;
+                oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+                
+                gainNode.gain.setValueAtTime(gain, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + durationMs / 1000);
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + durationMs / 1000);
+            } catch (e) {
+                // 音效播放錯誤，忽略
+            }
+        }
+
+        function playSpinSound() {
+            playSound(150, 150, 'sawtooth', 0.4);
+        }
+
+        function playWinSound() {
+            playSound(880, 500, 'sine', 0.6);
+            setTimeout(() => playSound(1320, 500, 'sine', 0.6), 100); 
+        }
+
+        // --- 核心邏輯 ---
+
+        /** 1. 設置賭注 */
+        function setBet(amount) {
+            if (isSpinning) return;
+            currentBet = amount;
+            updateDisplay();
+        }
+
+        /** 2. 更新顯示面板 */
+        function updateDisplay(resultText = '請下注並按下 SPIN！', color = 'white') {
+            balanceDisplay.textContent = `餘額: $${balance}`;
+            betDisplay.textContent = `賭注: $${currentBet}`;
+            resultDisplay.textContent = resultText;
+            resultDisplay.style.color = color; 
+
+            if (balance < currentBet) {
+                spinButton.disabled = true;
+                resultDisplay.textContent = '餘額不足，請降低賭注！';
+            } else {
+                spinButton.disabled = isSpinning;
+            }
+        }
+
+        /** 3. 滾軸動畫與停止 */
+        function spin() {
+            if (isSpinning || balance < currentBet) return;
+
+            isSpinning = true;
+            balance -= currentBet;
+            updateDisplay('SPINNING...', 'yellow');
+            spinButton.disabled = true;
+            
+            reels.forEach(r => r.classList.remove('winner'));
+            
+            // 播放滾動音效
+            const reelDurations = [2000, 2500, 3000];
+            reelDurations.forEach((duration, index) => {
+                 setTimeout(playSpinSound, index * 50); 
+                 setTimeout(playSpinSound, index * 50 + 200);
+                 setTimeout(playSpinSound, index * 50 + 400);
+            });
+            
+            let finalImageIndexes;
+
+            // ** 檢查保證中獎機制 **
+            if (consecutiveNonTripleSpins >= TRIPLE_GUARANTEE_COUNT) {
+                // *** 保證中獎機制啟動！***
+                const guaranteedIndex = Math.floor(Math.random() * IMAGE_FILES.length);
+                finalImageIndexes = [guaranteedIndex, guaranteedIndex, guaranteedIndex];
+            } else {
+                // 正常隨機決定最終結果
+                finalImageIndexes = Array.from({ length: REEL_COUNT }, 
+                    () => Math.floor(Math.random() * IMAGE_FILES.length));
+            }
+            
+            const spinPromises = finalImageIndexes.map((finalIndex, reelIndex) => {
+                return new Promise(resolve => {
+                    
+                    const totalSymbols = IMAGE_FILES.length;
+                    const stopCycleIndex = SYMBOLS_PER_REEL_STRIP - totalSymbols; 
+                    const finalStopPositionIndex = stopCycleIndex + finalIndex; 
+                    const totalSpinDistance = finalStopPositionIndex * SYMBOL_HEIGHT;
+
+                    const spinDuration = 2000 + reelIndex * 500; 
+
+                    const inner = reelInners[reelIndex];
+                    
+                    inner.style.transition = `transform ${spinDuration}ms cubic-bezier(0.25, 0.1, 0.25, 1)`; 
+                    inner.style.transform = `translateY(-${totalSpinDistance}px)`;
+
+                    setTimeout(() => {
+                        inner.style.transition = 'transform 0s';
+                        
+                        const resetDistance = finalIndex * SYMBOL_HEIGHT;
+                        inner.style.transform = `translateY(-${resetDistance}px)`;
+                        
+                        resolve(IMAGE_FILES[finalIndex]);
+                    }, spinDuration);
+                });
+            });
+
+            Promise.all(spinPromises).then(checkResult);
+        }
+
+        /** 4. 檢查結果與派彩 */
+        function checkResult(results) {
+            isSpinning = false;
+            spinButton.disabled = false;
+            
+            const [r1, r2, r3] = results;
+            let winAmount = 0;
+            let winText = '';
+            let winColor = 'white';
+            let isTripleWin = false;
+
+            // --- 判斷贏獎類型 ---
+            if (r1 === r2 && r2 === r3) {
+                // 三個相同 (TRIPLE)
+                winAmount = currentBet * PAYOUTS.TRIPLE;
+                winText = `✨ 恭喜三連線！大贏 $${winAmount}！`;
+                winColor = '#FFC107'; 
+                reels.forEach(r => r.classList.add('winner'));
+                playWinSound(); 
+                isTripleWin = true;
+            } 
+            else if (r1 === r2 || r2 === r3 || r1 === r3) {
+                // 兩個相同 (DOUBLE)
+                winAmount = currentBet * PAYOUTS.DOUBLE;
+                winText = `🎉 恭喜！兩張相同！贏得 $${winAmount}！`;
+                winColor = '#2ecc71';
+                
+                const winReels = [];
+                if (r1 === r2) { winReels.push(reels[0], reels[1]); }
+                if (r2 === r3) { winReels.push(reels[1], reels[2]); }
+                if (r1 === r3 && r1 !== r2) { winReels.push(reels[0], reels[2]); }
+                
+                winReels.forEach(r => r.classList.add('winner'));
+                playSound(660, 300, 'sine'); 
+            }
+            else {
+                // 沒有中獎
+                winText = '很可惜，沒有中獎。';
+            }
+            
+            // --- 更新保證中獎計數器 ---
+            if (isTripleWin) {
+                consecutiveNonTripleSpins = 0;
+            } else {
+                consecutiveNonTripleSpins++;
+            }
+
+            // --- 調整顯示訊息 ---
+            // 如果不是三連線，顯示當前計數
+            // if (!isTripleWin) {
+                 // winText += ` (非三連線次數: ${consecutiveNonTripleSpins}/${TRIPLE_GUARANTEE_COUNT})`;
+            // }
+            
+            balance += winAmount;
+            updateDisplay(winText, winColor);
+        }
+        
+        /** 5. 初始設置: 創建滾軸符號 */
+        function setupReels() {
+            const numSymbols = IMAGE_FILES.length;
+
+            reelInners.forEach(inner => {
+                for(let i = 0; i < SYMBOLS_PER_REEL_STRIP; i++) {
+                    const symbolDiv = document.createElement('div');
+                    symbolDiv.classList.add('symbol');
+                    
+                    const img = document.createElement('img');
+                    img.src = IMAGE_FILES[i % numSymbols];
+                    img.alt = `Symbol ${i}`;
+                    img.draggable = false;
+                    
+                    img.onerror = function() {
+                        this.style.visibility = 'hidden'; 
+                        this.parentNode.style.backgroundColor = 'transparent';
+                        this.parentNode.innerHTML = '❌'; 
+                    }
+                    
+                    symbolDiv.appendChild(img);
+                    inner.appendChild(symbolDiv);
+                }
+                
+                inner.style.transform = `translateY(0px)`;
+            });
+        }
+
+        // 啟動點
+        document.addEventListener('DOMContentLoaded', () => {
+            for (let i = 0; i < REEL_COUNT; i++) {
+                reels.push(document.getElementById(`reel-${i}`));
+                reelInners.push(document.getElementById(`reel-${i}`).querySelector('.reel-inner'));
+            }
+            setupReels();
+            updateDisplay(`歡迎光臨！請選擇賭注。`);
+        });
+
+    </script>
+</body>
+</html>

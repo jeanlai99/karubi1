@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卡路比記憶翻牌樂</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #282c34;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: #61dafb;
+            margin-bottom: 20px; // 20
+        }
+
+        /* 遊戲板容器：必須設置相對定位，讓 overlay 可以準確覆蓋 */
+        #game-area-container {
+            position: relative;
+            margin-bottom: 20px; /* 與下方資訊板保持距離 */ //20
+        }
+
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(4, 100px); 
+            gap: 10px;
+            padding: 20px;
+            background-color: #3a3f4a;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+            max-width: fit-content; 
+            /* 調整大小以適應 4x5 佈局 */
+            width: 440px; /* 4*100 + 3*10 + 2*20 padding */
+            height: 550px; /* 5*100 + 4*10 + 2*20 padding */
+        }
+
+        /* 勝利訊息覆蓋層的樣式 */
+        #win-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9); /* 黑色半透明背景 */
+            border-radius: 10px;
+            display: none; /* 預設隱藏 */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            text-align: center;
+            padding: 20px;
+            z-index: 10; /* 確保在卡牌上方 */
+            font-size: 1.2em;
+        }
+
+        #win-overlay h2 {
+            color: #ffcc00; /* 金色標題 */
+            font-size: 2.5em;
+            margin-bottom: 15px;
+        }
+        #win-overlay p {
+            margin: 8px 0;
+        }
+
+
+        /* 卡片樣式保持不變 */
+        .card {
+            width: 100px;
+            height: 100px;
+            background-color: #555;
+            border-radius: 8px;
+            cursor: pointer;
+            perspective: 1000px; 
+            position: relative;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            transition: transform 0.6s, opacity 0.8s, box-shadow 0.3s; 
+            pointer-events: all; 
+        }
+        
+        .card:hover:not(.flipped):not(.matched) {
+            box-shadow: 0 6px 12px rgba(97, 218, 251, 0.6);
+        }
+        
+        .card-container {
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+
+        .card.flipped .card-container {
+            transform: rotateY(180deg);
+        }
+
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden; 
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3em; 
+            color: white;
+            padding: 0;
+            margin: 0;
+        }
+
+        .card-front {
+            background-color: #4CAF50; 
+            transform: rotateY(180deg); 
+        }
+        .card-front img {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            object-fit: cover; 
+        }
+
+        .card-back {
+            background-color: #f44336; 
+            background-image: linear-gradient(135deg, #f44336 25%, #d32f2f 25%, #d32f2f 50%, #f44336 50%, #f44336 75%, #d32f2f 75%, #d32f2f 100%);
+            background-size: 20px 20px;
+            border: 2px solid #ff7043;
+        }
+        
+        /* 視覺優化：配對成功後，卡牌最終淡出 */
+        .card.matched {
+            opacity: 0; 
+            cursor: default;
+            pointer-events: none; 
+            transform: scale(0.9); 
+        }
+
+        #info-board {
+            margin-top: 20px;
+            display: flex;
+            gap: 40px;
+            font-size: 1.2em;
+            color: #a0a0a0;
+        }
+
+        #message {
+            margin-top: 20px;
+            font-size: 1.5em;
+            color: #61dafb;
+            font-weight: bold;
+        }
+        
+        button#resetButton { 
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 1.1em;
+            background-color: #61dafb;
+            color: #282c34;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        /* 獨立按鈕，因為它現在不一定在 overlay 裡面 */
+        #resetButton.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🐱 卡路比記憶翻牌樂 🐾</h1>
+    
+    <div id="game-area-container">
+        <div id="game-board">
+        </div>
+        <div id="win-overlay" class="hidden">
+            <h2 id="win-title">遊戲勝利！</h2>
+            <p id="final-flips"></p>
+            <p id="final-time"></p>
+            </div>
+    </div>
+
+    <div id="info-board">
+        <div id="score-board">配對數: <span id="matches-found">0</span> / <span id="total-pairs">10</span></div>
+        <div id="flips-board">翻牌次數: <span id="total-flips">0</span></div>
+        <div id="timer-board">時間: <span id="timer">0</span> 秒</div>
+    </div>
+    
+    <div id="message">載入貓咪圖片中...</div>
+    
+    <button id="resetButton" class="hidden">再玩一次</button> 
+<script>
+        const gameBoard = document.getElementById('game-board');
+        const winOverlay = document.getElementById('win-overlay'); // 新增獲取 overlay
+        const matchesFoundSpan = document.getElementById('matches-found');
+        const totalPairsSpan = document.getElementById('total-pairs');
+        const timerSpan = document.getElementById('timer');
+        const flipsSpan = document.getElementById('total-flips');
+        const messageDiv = document.getElementById('message');
+        const resetButton = document.getElementById('resetButton');
+        
+        // 獲取勝利面板內的元素
+        const finalFlipsP = document.getElementById('final-flips');
+        const finalTimeP = document.getElementById('final-time');
+
+        const IMAGE_FILES = [
+            "cat1.jpg", "cat2.jpg", "cat3.jpg", "cat4.jpg", "cat5.jpg",
+            "cat6.jpg", "cat7.jpg", "cat8.jpg", "cat9.jpg", "cat10.jpg"
+        ];
+        
+        let loadedImages = {};
+        let cards = []; 
+        let flippedCards = []; 
+        let matchCount = 0;
+        let flipCount = 0;
+        let canFlip = true; 
+        let timerInterval;
+        let seconds = 0;
+
+        // ... (playMockSound, preloadImages, shuffleArray 函式保持不變) ...
+
+        function playMockSound(name) {
+            let color;
+            let output;
+            switch(name) {
+                case 'FLIP': color = 'lightblue'; output = '🃏 Flip Card!'; break;
+                case 'MATCH': color = 'lightgreen'; output = '🎉 Match Found!'; break;
+                case 'NOMATCH': color = 'salmon'; output = '❌ No Match!'; break;
+                case 'WIN': color = 'gold'; output = '🏆 Game Win!'; break;
+                default: return;
+            }
+            console.log(`%c[音效模擬] ${output}`, `color: ${color}; font-weight: bold;`); 
+        }
+
+        function preloadImages(callback) {
+            let loadedCount = 0;
+            const uniqueImageCount = IMAGE_FILES.length;
+
+            if (uniqueImageCount === 0) {
+                callback();
+                return;
+            }
+
+            IMAGE_FILES.forEach(filePath => {
+                const img = new Image();
+                img.src = filePath;
+                img.onload = () => {
+                    loadedImages[filePath] = img; 
+                    loadedCount++;
+                    messageDiv.textContent = `載入貓咪圖片中... (${loadedCount}/${uniqueImageCount})`;
+                    if (loadedCount === uniqueImageCount) {
+                        callback();
+                    }
+                };
+                img.onerror = () => {
+                    console.error(`圖片載入失敗: ${filePath}。請檢查檔案是否存在且路徑正確。`);
+                    loadedImages[filePath] = {src: ''}; 
+                    loadedCount++;
+                    if (loadedCount === uniqueImageCount) {
+                        callback();
+                    }
+                };
+            });
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+        
+        // --- 初始化遊戲（創建卡牌和設定變數）---
+        function initGame() {
+            // 1. 重置所有遊戲狀態
+            clearInterval(timerInterval); 
+            seconds = 0;
+            flipCount = 0;
+            matchCount = 0;
+            canFlip = true; 
+            
+            // 2. 更新 DOM 顯示
+            timerSpan.textContent = seconds;
+            flipsSpan.textContent = flipCount;
+            matchesFoundSpan.textContent = matchCount;
+            totalPairsSpan.textContent = IMAGE_FILES.length;
+            messageDiv.textContent = '遊戲開始！請翻開卡片配對。';
+            
+            // 3. 隱藏勝利覆蓋層和按鈕
+            winOverlay.style.display = 'none';
+            resetButton.classList.add('hidden');
+            
+            // 4. 清空舊卡牌並創建新卡牌
+            gameBoard.innerHTML = ''; 
+
+            let cardValues = IMAGE_FILES.flatMap(file => [file, file]);
+            shuffleArray(cardValues); 
+
+            cards = []; 
+
+            cardValues.forEach((filePath, index) => {
+                const cardElement = document.createElement('div');
+                cardElement.classList.add('card');
+                cardElement.dataset.filePath = filePath; 
+                cardElement.dataset.index = index; 
+
+                const cardContainer = document.createElement('div');
+                cardContainer.classList.add('card-container');
+
+                const cardFront = document.createElement('div');
+                cardFront.classList.add('card-front');
+                
+                const img = document.createElement('img');
+                img.src = loadedImages[filePath] ? loadedImages[filePath].src : ''; 
+                cardFront.appendChild(img);
+
+                const cardBack = document.createElement('div');
+                cardBack.classList.add('card-back');
+                
+                cardContainer.appendChild(cardFront);
+                cardContainer.appendChild(cardBack);
+                cardElement.appendChild(cardContainer);
+                
+                cardElement.addEventListener('click', () => flipCard(cardElement));
+                
+                gameBoard.appendChild(cardElement);
+                cards.push(cardElement); 
+            });
+
+            startTimer();
+        }
+
+        // --- 翻牌邏輯 ---
+        function flipCard(cardElement) {
+            if (!canFlip || cardElement.classList.contains('flipped') || cardElement.classList.contains('matched')) {
+                return; 
+            }
+            
+            // 計分機制：每次翻第一張卡牌時才增加次數
+            if (flippedCards.length === 0) {
+                flipCount++;
+                flipsSpan.textContent = flipCount;
+            }
+
+            cardElement.classList.add('flipped');
+            playMockSound('FLIP'); 
+            flippedCards.push(cardElement);
+
+            if (flippedCards.length === 2) {
+                canFlip = false; 
+                setTimeout(checkForMatch, 1000); 
+            }
+        }
+
+        // --- 檢查是否配對 ---
+        function checkForMatch() {
+            const [card1, card2] = flippedCards;
+            const isMatch = card1.dataset.filePath === card2.dataset.filePath;
+
+            if (isMatch) {
+                // 視覺優化：延遲淡出效果，確保翻開動畫完成
+                setTimeout(() => {
+                    card1.classList.add('matched');
+                    card2.classList.add('matched');
+                    matchCount++;
+                    matchesFoundSpan.textContent = matchCount;
+                    playMockSound('MATCH'); 
+                    checkWin();
+                }, 50); 
+                
+            } else {
+                card1.classList.remove('flipped');
+                card2.classList.remove('flipped');
+                playMockSound('NOMATCH'); 
+            }
+
+            flippedCards = []; 
+            canFlip = true; 
+        }
+
+        // --- 檢查遊戲是否勝利 ---
+        function checkWin() {
+            if (matchCount === IMAGE_FILES.length) {
+                clearInterval(timerInterval);
+                playMockSound('WIN'); 
+                
+                // 延遲顯示勝利畫面，等待最後一組卡牌的淡出動畫完成 (800ms)
+                setTimeout(() => {
+                    // 1. 更新勝利訊息內容
+                    finalFlipsP.innerHTML = `總翻牌次數：**${flipCount}**`;
+                    finalTimeP.innerHTML = `總花費時間：**${seconds} 秒**`;
+                    
+                    // 2. 顯示勝利覆蓋層
+                    winOverlay.style.display = 'flex';
+                    
+                    // 3. 顯示「再玩一次」按鈕
+                    resetButton.classList.remove('hidden'); 
+                    messageDiv.textContent = '點擊「再玩一次」開始新遊戲！';
+
+                }, 850); // 略長於 CSS 中的 opacity 過渡時間 0.8s
+            }
+        }
+
+        // --- 計時器 ---
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                seconds++;
+                timerSpan.textContent = seconds;
+            }, 1000);
+        }
+
+        // --- 「再玩一次」按鈕事件 ---
+        resetButton.addEventListener('click', initGame);
+
+        // --- 頁面載入後，先預載入圖片，然後啟動遊戲 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            preloadImages(initGame);
+        });
+
+    </script>
+</body>
+</html>
