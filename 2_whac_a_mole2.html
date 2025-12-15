@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>專業版打地鼠遊戲 (Whac-A-Mole Pro)</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- 變數設定 --- */
+        :root {
+            --primary-brown: #5D4037; /* 深木頭棕 */
+            --light-wood: #A1887F;   /* 淺木頭色 */
+            --grass-green: #689F38;  /* 質感草綠 */
+            --accent-red: #D32F2F;   /* 啟動鈕紅色 */
+            --text-light: #FBEFE0;
+            --text-dark: #333333;
+            --mole-size: 100px;
+        }
+
+        /* --- 基本排版與字體 --- */
+        body {
+            font-family: 'Noto Sans TC', 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: linear-gradient(to bottom, #F5F5F5, #E0E0E0); /* 淺灰漸層背景 */
+            margin: 0;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: var(--primary-brown);
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        /* --- 資訊面板 --- */
+        #game-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px 25px;
+            width: 400px;
+            max-width: 100%;
+            margin-bottom: 25px;
+            padding: 15px 25px;
+            background-color: var(--grass-green);
+            color: var(--text-light);
+            border-radius: 15px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+            border: 3px solid #4E7B2F; /* 邊框增強質感 */
+        }
+        
+        #score, #timer {
+            font-size: 1.6rem;
+            font-weight: 700;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+        }
+
+        /* --- 圖片設定區 --- */
+        #image-config {
+            grid-column: span 2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding-top: 10px;
+            margin-top: 5px;
+            border-top: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        #image-config label {
+            font-size: 1rem;
+            margin-right: 15px;
+            font-weight: 400;
+        }
+
+        #image-count-input {
+            width: 50px;
+            padding: 8px;
+            text-align: center;
+            border: 2px solid var(--primary-brown);
+            border-radius: 8px;
+            font-size: 1.1rem;
+            background-color: var(--text-light);
+            color: var(--text-dark);
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        /* --- 按鈕樣式 --- */
+        #start-button {
+            padding: 18px 40px;
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 30px;
+            cursor: pointer;
+            background-color: var(--accent-red);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 7px 0 #A82424; /* 3D 下沉陰影 */
+            transition: all 0.1s;
+            text-transform: uppercase;
+        }
+
+        #start-button:active {
+            box-shadow: 0 0 #A82424;
+            transform: translateY(7px);
+        }
+        
+        #start-button:disabled {
+            background-color: #A0A0A0;
+            box-shadow: none;
+            transform: none;
+        }
+
+        /* --- 遊戲面板 --- */
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 20px;
+            background-color: var(--light-wood);
+            padding: 30px;
+            border-radius: 25px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.4), inset 0 0 15px rgba(0,0,0,0.3); /* 深度陰影 */
+            border: 5px solid var(--primary-brown);
+        }
+
+        /* --- 洞口與地鼠 --- */
+        .hole {
+            width: var(--mole-size);
+            height: var(--mole-size);
+            background-color: var(--hole-color);
+            border-radius: 50%;
+            position: relative;
+            overflow: hidden; 
+            box-shadow: inset 0 5px 10px rgba(0,0,0,0.5); /* 洞口內側陰影 */
+        }
+
+        .mole {
+            position: absolute;
+            bottom: calc(0px - var(--mole-size)); /* 初始在地底下 */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            height: 100%;
+            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><text x="10" y="30" style="font-size: 24px;">🔨</text></svg>'), auto; 
+            transition: bottom 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.27); /* 彈出動畫 */
+            
+            /* 讓地鼠看起來像從洞口中出現 */
+            background-color: transparent; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .mole img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3); /* 地鼠自身陰影 */
+            pointer-events: none; /* 讓點擊事件穿透 */
+            transition: transform 0.1s ease;
+        }
+
+        /* 地鼠彈出時的樣式 */
+        .hole.up .mole {
+            bottom: 0; 
+        }
+
+        /* 地鼠被擊中時的樣式 */
+        .mole.hit img {
+            filter: saturate(0) brightness(0.6); /* 飽和度降低，變暗 */
+            transform: scale(0.95); /* 輕微收縮 */
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🔨 打地鼠挑戰 🔨</h1>
+
+    <div id="game-info">
+        <div id="score">分數: 0</div>
+        <div id="timer">時間: 30</div>
+        
+        <div id="image-config">
+            <label for="image-count-input">使用圖片張數 (1-10):</label>
+            <input type="number" id="image-count-input" value="10" min="1" max="10">
+        </div>
+    </div>
+
+    <button id="start-button">開始遊戲</button>
+
+    <div id="game-board">
+        </div>
+
+    <script>
+        // --- *** 客製化設定區塊 *** ---
+
+        // 1. 地鼠圖片 URL 列表 (使用您的本地檔名 cat1.jpg 到 cat10.jpg)
+        // *** 請確保這些檔案在同一個目錄中！ ***
+        const MOLE_IMAGES = [
+            'cat1.jpg', 'cat2.jpg', 'cat3.jpg', 'cat4.jpg', 'cat5.jpg',
+            'cat6.jpg', 'cat7.jpg', 'cat8.jpg', 'cat9.jpg', 'cat10.jpg'
+        ];
+        
+        // 2. 遊戲時間 (秒)
+        const GAME_DURATION = 30; 
+
+        // 3. 地鼠出現間隔時間 (毫秒) - 決定遊戲的總體速度
+        const BASE_POP_INTERVAL = 700; 
+
+        // 4. 地鼠停留時間範圍 (毫秒) - 決定地鼠停留在外面的時間
+        const MIN_PEEK_TIME = 500; 
+        const MAX_PEEK_TIME = 1300; 
+
+        // --- 遊戲變數 ---
+        let score = 0;
+        let timeLeft = GAME_DURATION;
+        let lastHole;
+        let isGameRunning = false;
+        let moleInterval;
+        let timerInterval;
+        let currentImagePool = []; // 每次遊戲開始時隨機選出的圖片池
+
+        const board = document.getElementById('game-board');
+        const scoreDisplay = document.getElementById('score');
+        const timerDisplay = document.getElementById('timer');
+        const startButton = document.getElementById('start-button');
+        const imageCountInput = document.getElementById('image-count-input');
+        
+        const holes = []; 
+
+        // --- 輔助函數 ---
+
+        function getRandomHole() {
+            const index = Math.floor(Math.random() * holes.length);
+            const hole = holes[index];
+            if (hole === lastHole) {
+                return getRandomHole(); 
+            }
+            lastHole = hole;
+            return hole;
+        }
+
+        function getRandomTime(min, max) {
+            return Math.round(Math.random() * (max - min) + min);
+        }
+
+        function playWhackSound() {
+            try {
+                // 產生一個清脆的敲擊音效
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.type = 'square';
+                oscillator.frequency.setValueAtTime(400, audioCtx.currentTime); 
+                oscillator.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.05);
+
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.1);
+            } catch (e) {
+                // Ignore audio errors
+            }
+        }
+
+        // --- 遊戲邏輯 ---
+
+        function getRamdomMoleImage() {
+            const index = Math.floor(Math.random() * currentImagePool.length);
+            return currentImagePool[index];
+        }
+
+        // 處理地鼠被敲擊
+        function whack(e) {
+            if (!e.isTrusted || !isGameRunning) return; 
+
+            const mole = e.target.closest('.mole');
+            if (!mole || !mole.parentElement.classList.contains('up')) return;
+            
+            // 立即移除點擊事件，避免重複計分
+            mole.style.pointerEvents = 'none';
+
+            // 更新分數
+            score++;
+            scoreDisplay.textContent = `分數: ${score}`;
+            playWhackSound();
+            
+            // 視覺回饋：添加 'hit' class 
+            mole.classList.add('hit');
+            
+            // 立即讓地鼠消失
+            const hole = mole.parentElement;
+            setTimeout(() => {
+                hole.classList.remove('up');
+                // 在地鼠完全消失後再移除 'hit' 狀態，為下一次出現做準備
+                setTimeout(() => mole.classList.remove('hit'), 200); 
+            }, 100); 
+        }
+
+        // 讓地鼠彈出
+        function popUp() {
+            const time = getRandomTime(MIN_PEEK_TIME, MAX_PEEK_TIME);
+            const hole = getRandomHole();
+            
+            const mole = hole.querySelector('.mole');
+            const moleImg = mole.querySelector('img');
+            
+            // 1. 設置隨機圖片
+            moleImg.src = getRamdomMoleImage();
+            
+            // 2. 重置地鼠狀態
+            mole.style.pointerEvents = 'auto'; 
+            mole.classList.remove('hit');
+            
+            // 3. 彈出
+            hole.classList.add('up');
+            
+            // 設定停留時間後消失
+            setTimeout(() => {
+                hole.classList.remove('up');
+                // 確保地鼠消失後，如果遊戲結束，就停止循環
+                if (!isGameRunning) {
+                     clearInterval(moleInterval);
+                }
+            }, time);
+        }
+
+        // 開始遊戲主要循環
+        function startGame() {
+            if (isGameRunning) return;
+            
+            // 1. 根據輸入框設定圖片池
+            const count = parseInt(imageCountInput.value);
+            const numImages = Math.min(Math.max(count, 1), MOLE_IMAGES.length); 
+            
+            // 隨機選取圖片
+            const shuffledImages = [...MOLE_IMAGES].sort(() => 0.5 - Math.random());
+            currentImagePool = shuffledImages.slice(0, numImages);
+
+            // 2. 狀態重置
+            isGameRunning = true;
+            score = 0;
+            timeLeft = GAME_DURATION;
+            scoreDisplay.textContent = `分數: ${score}`;
+            timerDisplay.textContent = `時間: ${timeLeft}`;
+            startButton.textContent = '遊戲中...';
+            startButton.disabled = true;
+            imageCountInput.disabled = true;
+
+            // 清除所有洞口的地鼠
+            holes.forEach(hole => hole.classList.remove('up'));
+
+            // 開始地鼠彈出循環
+            moleInterval = setInterval(popUp, BASE_POP_INTERVAL);
+
+            // 開始計時器
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = `時間: ${timeLeft}`;
+
+                if (timeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        // 結束遊戲
+        function endGame() {
+            isGameRunning = false;
+            clearInterval(moleInterval);
+            clearInterval(timerInterval);
+            startButton.textContent = '重新開始';
+            startButton.disabled = false;
+            imageCountInput.disabled = false;
+            alert(`🏆 遊戲結束！您的最終分數是: ${score} 分。本次使用了 ${currentImagePool.length} 張圖片。`);
+        }
+
+        // 初始設定: 創建洞口元素
+        function setupBoard() {
+            for (let i = 0; i < 9; i++) {
+                const hole = document.createElement('div');
+                hole.classList.add('hole');
+                
+                const mole = document.createElement('div');
+                mole.classList.add('mole');
+                
+                const moleImg = document.createElement('img');
+                moleImg.alt = 'Mole Image';
+                moleImg.draggable = false; // 防止拖動圖片
+                
+                mole.appendChild(moleImg);
+                hole.appendChild(mole);
+                board.appendChild(hole);
+                
+                holes.push(hole);
+                
+                // 確保點擊地鼠本體才計分
+                mole.addEventListener('click', whack);
+            }
+        }
+
+        // 啟動點
+        startButton.addEventListener('click', startGame);
+        setupBoard();
+        
+    </script>
+</body>
+</html>
